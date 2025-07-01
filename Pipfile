@@ -6,6 +6,8 @@ name = "pypi"
 [packages]
 click = "*"
 tinydb = "*"
+rich = "*"
+questionary = "*"
 
 [dev-packages]
 
