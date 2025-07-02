@@ -21,7 +21,7 @@ def cli():
 @click.option('--time', type=click.STRING, help='Datetime in ISO format (defaults to now)')
 def add(title, tag, time):
     """Add a new item with TITLE, optional TAGS, and optional DATETIME."""
-    timestamp = parse_time_str(time).timestamp()
+    timestamp = (parse_flexible_datetime(time) or datetime.now()).timestamp()
 
     if title:
         title_str = ' '.join(title)
@@ -39,7 +39,7 @@ def add(title, tag, time):
     click.echo(f"Added: {item.title} with tags: {item.tags}")
 
 @cli.command()
-@click.option('--from', 'from_dt', default=None, help='Start datetime in ISO format (inclusive, defaults to 3 days ago)')
+@click.option('--from', 'from_dt', default=None, help='Start datetime in ISO format (inclusive, defaults to 7 days ago)')
 @click.option('--to', 'to_dt', default=None, help='End datetime in ISO format (inclusive, defaults to now)')
 def list(from_dt, to_dt):
     """List all records from latest to past, optionally within a time range."""
@@ -47,12 +47,14 @@ def list(from_dt, to_dt):
     now = datetime.now()
 
     if from_dt:
-        from_time = datetime.fromisoformat(from_dt)
+        from_time = parse_flexible_datetime(from_dt)
+        assert from_time is not None, f'{from_dt} is invalid'
     else:
-        from_time = now - timedelta(days=3)
+        from_time = now - timedelta(days=7)
 
     if to_dt:
-        to_time = datetime.fromisoformat(to_dt)
+        to_time = parse_flexible_datetime(to_dt)
+        assert to_time is not None, f'{from_dt} is invalid'
     else:
         to_time = now
 
@@ -62,7 +64,7 @@ def list(from_dt, to_dt):
     with DB() as db:
         records = db.all()
         records = [r for r in records if from_ts <= r['timestamp'] <= to_ts]
-        records.sort(key=lambda r: r['id'], reverse=True)
+        records.sort(key=lambda r: r['timestamp'], reverse=True)
 
         table = Table(box=None)
 
