@@ -1,7 +1,11 @@
 from datetime import datetime, timedelta
+from typing import Optional
 
-def parse_flexible_datetime(date_str: str) -> datetime:
+def parse_datetime(date_str: Optional[str]) -> Optional[datetime]:
     """Parse a date string in various formats, including relative dates and weekdays."""
+    if date_str is None:
+        return None
+
     try:
         return datetime.fromisoformat(date_str)
     except:
@@ -36,6 +40,9 @@ def parse_flexible_datetime(date_str: str) -> datetime:
             if len(parts) == 2 and all(part.isdigit() for part in parts):
                 month, day = map(int, parts)
                 if 1 <= month <= 12 and 1 <= day <= 31:
-                    return datetime(today.year, month, day)
+                    if month <= today.month:
+                        return datetime(today.year, month, day)
+                    else:
+                        return datetime(today.year - 1, month, day)
 
     return None

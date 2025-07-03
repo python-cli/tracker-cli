@@ -21,16 +21,18 @@ def cli():
 @click.option('--time', type=click.STRING, help='Datetime in ISO format (defaults to now)')
 def add(title, tag, time):
     """Add a new item with TITLE, optional TAGS, and optional DATETIME."""
-    timestamp = (parse_flexible_datetime(time) or datetime.now()).timestamp()
+    timestamp = (parse_datetime(time) or datetime.now()).timestamp()
 
     if title:
         title_str = ' '.join(title)
     else:
-        title_str = questionary.text('Title').ask()
+        title_str = questionary.text('Title', validate=lambda x: True if len(x) > 0 else 'Title must not be empty').ask()
+        if not title_str:
+            raise click.Abort()
 
     if not tag:
-        tag = questionary.text('Tag (comma-separated)').ask().strip()
-        tag = tag if len(tag) > 0 else None
+        tag = questionary.text('Tag (comma-separated)').ask()
+        tag = tag.strip() if tag and len(tag) > 0 else None
 
     tag_list = [t.strip() for t in tag.split(',')] if tag else None
 
@@ -47,19 +49,21 @@ def list(from_dt, to_dt):
     now = datetime.now()
 
     if from_dt:
-        from_time = parse_flexible_datetime(from_dt)
+        from_time = parse_datetime(from_dt)
         assert from_time is not None, f'{from_dt} is invalid'
     else:
         from_time = now - timedelta(days=7)
 
     if to_dt:
-        to_time = parse_flexible_datetime(to_dt)
+        to_time = parse_datetime(to_dt)
         assert to_time is not None, f'{from_dt} is invalid'
     else:
         to_time = now
 
     from_ts = int(from_time.timestamp())
     to_ts = int(to_time.timestamp())
+
+    assert from_ts <= to_ts, '<from> must be less or equal to <to> date'
 
     with DB() as db:
         records = db.all()
