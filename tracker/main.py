@@ -11,6 +11,17 @@ from .config import *
 from .model import *
 from .time import *
 
+def _show_record(record: Record, prefix: str = ''):
+    if prefix and len(prefix) > 0:
+        click.echo(prefix)
+
+    click.secho(f'ID:    ', nl=False)
+    click.secho(f'{record.id}', fg='green')
+    click.secho(f'Title: ', nl=False)
+    click.secho(f'{record.title}', fg='green')
+    click.secho(f'Tag:   ', nl=False)
+    click.secho(f'{record.tags_str or ''}', fg='green')
+
 @click.group()
 def cli():
     pass
@@ -18,10 +29,10 @@ def cli():
 @cli.command()
 @click.argument('title', type=click.STRING, nargs=-1)
 @click.option('--tag', type=click.STRING, help='Comma-separated list of tags')
-@click.option('--time', type=click.STRING, help='Datetime in ISO format (defaults to now)')
-def add(title, tag, time):
+@click.option('--date', type=click.STRING, help='Datetime in ISO format (defaults to now)')
+def add(title, tag, date):
     """Add a new item with TITLE, optional TAGS, and optional DATETIME."""
-    timestamp = (parse_datetime(time) or datetime.now()).timestamp()
+    timestamp = (parse_datetime(date) or datetime.now()).timestamp()
 
     if title:
         title_str = ' '.join(title)
@@ -38,7 +49,7 @@ def add(title, tag, time):
 
     item = Record(title=title_str, tags=tag_list, timestamp=timestamp)
     item.save()
-    click.echo(f"Added: {item.title} with tags: {item.tags}")
+    _show_record(item, 'Record added:')
 
 @cli.command()
 @click.option('--from', 'from_dt', default=None, help='Start datetime in ISO format (inclusive, defaults to 7 days ago)')
@@ -111,7 +122,7 @@ def edit(id):
 
         # Update and save
         db.update({'title': new_title, 'tags': new_tags}, Q.id == id)
-        click.echo('Updated')
+        _show_record(rec, 'Record updated:')
 
 @cli.command()
 @click.argument('id', type=click.INT)
@@ -125,14 +136,44 @@ def delete(id):
             return
 
         rec = Record(**record)
-        Console().print("[bold red]About to delete:[/bold red]", end=" ")
-        Console().print(f"ID: {rec.id}\tTitle: {rec.title}")
+        Console().print("[bold red]About to delete:[/bold red]")
+        _show_record(rec)
 
         if not questionary.confirm('Are you sure?').ask():
             return
 
         db.remove(Q.id == id)
         click.echo(f"Deleted record with ID {id}.")
+
+@cli.command('continue')
+@click.argument('id', type=click.INT)
+@click.option('--tag', type=click.STRING, help='Comma-separated list of tags')
+@click.option('--date', type=click.STRING, help='Datetime in ISO format (defaults to now)')
+def continue_cmd(id, tag, date):
+    """Duplicate an existing record by ID."""
+    with DB() as db:
+        Q = Query()
+        record = db.get(Q.id == id)
+        if not record:
+            click.echo(f"No record found with ID {id}.")
+            return
+
+        timestamp = (parse_datetime(date) or datetime.now()).timestamp()
+        rec = Record(**record)
+
+        title_str = questionary.text('Title', default=rec.title, validate=lambda x: True if len(x) > 0 else 'Title must not be empty').ask()
+        if not title_str:
+            raise click.Abort()
+
+        if not tag:
+            tag = questionary.text('Tag (comma-separated)', default=rec.tags_str or '').ask()
+            tag = tag.strip() if tag and len(tag) > 0 else None
+
+        tag_list = [t.strip() for t in tag.split(',')] if tag else None
+
+        item = Record(title=title_str, tags=tag_list, timestamp=timestamp)
+        item.save()
+        _show_record(item, 'Record duplicated:')
 
 if __name__ == '__main__':
     cli()
